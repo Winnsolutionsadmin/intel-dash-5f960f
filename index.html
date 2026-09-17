@@ -286,6 +286,22 @@ footer{margin-top:64px; padding-top:20px; border-top:1px solid var(--hud-border-
 
   <section>
     <div class="shead">
+      <div><div class="eyebrow">Scope</div><h2>What this audit covered, and what it did not</h2></div>
+      <div class="sub">
+        Published so the dashboard cannot be mistaken for complete. Gaps are listed by name rather
+        than left as silence, because an unaudited dimension reads identically to a clean one.
+      </div>
+    </div>
+    <div class="tbl-scroll">
+      <table id="coverage-tbl" style="min-width:680px">
+        <thead><tr><th>Area</th><th>Status</th><th>Method, or why it is missing</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead">
       <div><div class="eyebrow">Provenance</div><h2>What is established, and what is still open</h2></div>
       <div class="sub">Findings carried from session recon. Verified means observed directly; open means still being resolved.</div>
     </div>
@@ -355,6 +371,32 @@ window.SEO_DATA = {
       hasOrganicSeoTab: false
     }
   },
+
+
+  /* ---------------------------------------------------------------------------
+     COVERAGE LEDGER. Answers "did this go over everything?" honestly, in the
+     artifact rather than in conversation. status: done | running | gap
+     ------------------------------------------------------------------------ */
+  coverage: [
+    { area: "Tag / pixel provisioning",   status: "done",    how: "Both GTM containers parsed field-by-field from exports; 7-element matrix per URL pattern" },
+    { area: "Page inventory + crawl",     status: "done",    how: "All 616 sitemap URLs fetched, HTTP 200 confirmed before any extraction" },
+    { area: "Engagement / bounce",        status: "done",    how: "28d measured sitewide + per channel; per-page MODELLED at 19.0% MAPE" },
+    { area: "CTA + takeaway audit",       status: "done",    how: "57 URLs read for takeaway clarity, CTA presence, specificity and placement" },
+    { area: "Claims / compliance",        status: "done",    how: "47 flags across 25 pages; routed to the internal red-flag audit, not resolved here" },
+    { area: "Core Web Vitals",            status: "running", how: "NEVER measured on this property. PageSpeed quota died 2026-09-02 and it was left unverified" },
+    { area: "Crawlability / indexability",status: "running", how: "seo-technical lane: canonicals, robots, redirect chains, JS-dependency" },
+    { area: "Local SEO (GBP / NAP)",      status: "running", how: "seo-local lane. Likely the largest organic lever for a multi-location clinic and previously untouched" },
+    { area: "Schema validation",          status: "running", how: "seo-geo lane. Missing types were noted earlier but never VALIDATED" },
+    { area: "AI search / GEO citability", status: "running", how: "seo-geo lane. AI Assistant channel already engages above Direct yet converts 0%" },
+    { area: "hreflang / Spanish",         status: "running", how: "Funnel has Spanish-named actions (WC LLAMADA, WC FORMULARIO); never checked" },
+    { area: "Backlink profile",           status: "gap",     how: "Not run. No authority or referring-domain data exists for this estate" },
+    { area: "Keyword / topic clustering", status: "gap",     how: "Not run. No keyword map, so no intent-to-page assignment" },
+    { area: "SXO / page-type mismatch",   status: "gap",     how: "Not run. This is what explains why an optimised page still fails to rank" },
+    { area: "Image / alt-text audit",     status: "gap",     how: "Not run across 616 pages" },
+    { area: "Internal link graph",        status: "gap",     how: "Not run. Orphan pages are known to exist but the graph was never built" },
+    { area: "Drift baseline",             status: "gap",     how: "Not captured, so future regressions cannot be detected against today" },
+    { area: "Competitor comparison",      status: "gap",     how: "Not run" }
+  ],
 
   /* Data-source health. Drives the header badge row. */
   sources: [
@@ -566,6 +608,11 @@ window.SEO_DATA = {
       body: "During the blocked per-page bounce attempt, one GA4 Exploration named \"Last 28 days\" was created in the client's property and not removed. Nothing else was enabled, written or configured on any Google surface. It should be deleted by hand if a clean Explorations list matters to WCI."
     },
     {
+      kind: "open",
+      title: "DEFECT in shipped crawl data: word_count_est counts template boilerplate",
+      body: "The crawl's word_count_est column reports a MINIMUM of 361 words across the estate, while /intratumoral-vaccine-for-cancer/ is independently known to carry 5 real words. The column is measuring Astra and Elementor chrome, not article body. Any thin-content conclusion drawn from it is wrong, and it was already shipped in site-pages.json. A real main-content extractor is running to replace it. Recorded here rather than quietly patched, because a number that was trusted and then found false is worth more as a warning than as a correction."
+    },
+    {
       kind: "method",
       title: "Two false-clean traps that were defused, and one that remains",
       body: "First: non-200 pages carry tag_scan_trustworthy:false and were left unscanned rather than reported clean: grepping a 404 body for a tag yields a false clean. Second, the INVERSE trap: fbq_fn:false on every page means only \"not in the delivered HTML\", NOT \"no Meta pixel\": GTM injects it at runtime, so tag truth must be read from the container, never the page source. Third, a live one: a case-insensitive ID regex false-positived on the g-recaptcha CSS class and produced 1,547 bogus tag IDs before removal; after cleanup GTM-THGJ73L is the only container ID in delivered HTML sitewide."
@@ -768,6 +815,19 @@ window.SEO_DATA = {
         + '</div>';
     }).join("") + "</div>";
   }
+
+  /* ---- coverage ledger ---- */
+  (function(){
+    var host = document.querySelector('#coverage-tbl tbody');
+    if (!host || !D.coverage) return;
+    var chip = { done:"ok", running:"warn", gap:"bad" };
+    var word = { done:"covered", running:"in flight", gap:"NOT RUN" };
+    host.innerHTML = D.coverage.map(function(c){
+      return "<tr><td><strong>"+esc(c.area)+"</strong></td>"
+        + '<td><span class="chip '+chip[c.status]+'">'+word[c.status]+"</span></td>"
+        + '<td style="color:var(--hud-text-dim)">'+esc(c.how)+"</td></tr>";
+    }).join("");
+  })();
 
   /* ---- discovery ---- */
   $("discovery").innerHTML = D.discovery.map(function(d){
