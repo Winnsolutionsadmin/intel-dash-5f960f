@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
+<title>WCI SEO Intelligence: page provisioning and bounce diagnosis</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── tokens lifted verbatim from the live dashboard stylesheet ─────────────── */
+:root{
+  --hud-bg-primary:#071325; --hud-bg-panel:#101c2e; --hud-bg-card:#111827;
+  --hud-bg-elevated:#1f2a3d; --hud-bg-input:#030e20; --hud-bg-progress:#2a3548;
+  --hud-accent-cyan:#06b6d4; --hud-accent-cyan-light:#4cd7f6;
+  --hud-accent-cyan-bright:#22d3ee; --hud-accent-cyan-pale:#a5f3fc;
+  --hud-accent-green:#34d399; --hud-accent-green-bg:rgba(16,185,129,.1);
+  --hud-accent-amber:#ffb95f; --hud-accent-red:#ffb4ab;
+  --hud-border-cyan:rgba(6,182,212,.1); --hud-border-cyan-strong:rgba(76,215,246,.4);
+  --hud-border-medium:rgba(61,73,76,.3); --hud-border-subtle:rgba(61,73,76,.15);
+  --hud-text-primary:#d7e3fc; --hud-text-secondary:#bcc9cd; --hud-text-dim:#94a3b8;
+  --hud-text-muted:#869397; --hud-text-dark:#64748b; --hud-text-darker:#475569;
+  --f-display:"Space Grotesk",system-ui,sans-serif;
+  --f-body:"Inter",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+html,body{touch-action:pan-x pan-y}
+input,select,textarea{font-size:16px}
+body{
+  margin:0; background:var(--hud-bg-primary); color:var(--hud-text-primary);
+  font-family:var(--f-body); font-size:14px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+/* faint instrument grid: ambient rather than decorative noise */
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
+  background-image:linear-gradient(var(--hud-border-subtle) 1px,transparent 1px),
+                   linear-gradient(90deg,var(--hud-border-subtle) 1px,transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(ellipse at 50% 0%,#000 0%,transparent 75%);
+}
+.wrap{position:relative; z-index:1; max-width:1400px; margin:0 auto; padding:32px 24px 96px}
+a{color:var(--hud-accent-cyan-light)}
+:focus-visible{outline:2px solid var(--hud-accent-cyan-bright); outline-offset:2px; border-radius:2px}
+
+/* ── type ─────────────────────────────────────────────────────────────────── */
+h1,h2,h3{font-family:var(--f-display); font-weight:500; letter-spacing:-.01em; margin:0}
+h1{font-size:clamp(24px,3.4vw,38px); line-height:1.1; font-weight:700}
+h2{font-size:19px; margin-bottom:4px}
+h3{font-size:14px; font-weight:500}
+.eyebrow{
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--hud-accent-cyan); margin-bottom:10px
+}
+.lede{color:var(--hud-text-dim); max-width:74ch; margin:10px 0 0}
+.num{font-family:var(--f-mono); font-variant-numeric:tabular-nums}
+
+/* ── header ───────────────────────────────────────────────────────────────── */
+.masthead{border-bottom:1px solid var(--hud-border-medium); padding-bottom:24px; margin-bottom:28px}
+.stamp{
+  display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:16px;
+  font-family:var(--f-mono); font-size:11px; color:var(--hud-text-dark)
+}
+.stamp b{color:var(--hud-text-muted); font-weight:400}
+
+/* source badges */
+.sources{display:flex; flex-wrap:wrap; gap:8px; margin-top:20px}
+.src{
+  display:inline-flex; align-items:center; gap:8px; padding:7px 12px;
+  background:var(--hud-bg-card); border:1px solid var(--hud-border-medium);
+  border-radius:3px; font-size:12px
+}
+.src .dot{width:7px; height:7px; border-radius:50%; flex:none}
+.src[data-state=verified]{border-color:rgba(52,211,153,.4)}
+.src[data-state=verified] .dot{background:var(--hud-accent-green); box-shadow:0 0 8px var(--hud-accent-green)}
+.src[data-state=pending]{border-color:rgba(255,185,95,.35)}
+.src[data-state=pending] .dot{background:var(--hud-accent-amber); animation:pulse 1.8s ease-in-out infinite}
+.src[data-state=blocked]{border-color:rgba(255,180,171,.45)}
+.src[data-state=blocked] .dot{background:var(--hud-accent-red)}
+.src .lbl{font-family:var(--f-display); font-weight:500}
+.src .st{font-family:var(--f-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--hud-text-dark)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+
+/* ── signature: the measurability gate ────────────────────────────────────── */
+.gate{
+  margin:28px 0; padding:22px 24px; border-radius:4px;
+  background:linear-gradient(135deg,rgba(6,182,212,.07),transparent 60%),var(--hud-bg-panel);
+  border:1px solid var(--hud-border-cyan-strong); border-left:3px solid var(--hud-accent-cyan)
+}
+.gate h2{color:var(--hud-accent-cyan-pale)}
+.gate p{color:var(--hud-text-secondary); margin:10px 0 0; max-width:80ch}
+.gate .eq{
+  display:inline-block; margin-top:14px; padding:8px 14px; border-radius:3px;
+  background:var(--hud-bg-input); border:1px solid var(--hud-border-cyan);
+  font-family:var(--f-mono); font-size:12.5px; color:var(--hud-accent-cyan-light)
+}
+
+/* ── kpi strip ────────────────────────────────────────────────────────────── */
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(168px,1fr)); gap:12px; margin:24px 0 36px}
+.kpi{background:var(--hud-bg-card); border:1px solid var(--hud-border-medium); border-radius:4px; padding:16px}
+.kpi .k{font-family:var(--f-mono); font-size:10px; letter-spacing:.11em; text-transform:uppercase; color:var(--hud-text-dark)}
+.kpi .v{font-family:var(--f-mono); font-size:26px; font-weight:500; color:var(--hud-text-primary); margin-top:8px; line-height:1}
+.kpi .v.empty{color:var(--hud-text-darker); font-size:20px}
+.kpi .s{font-size:11px; color:var(--hud-text-muted); margin-top:7px}
+
+/* ── sections ─────────────────────────────────────────────────────────────── */
+section{margin:44px 0}
+.shead{display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:16px}
+.shead .sub{font-size:12.5px; color:var(--hud-text-dim); max-width:66ch}
+
+/* ── tables ───────────────────────────────────────────────────────────────── */
+.tbl-scroll{overflow-x:auto; border:1px solid var(--hud-border-medium); border-radius:4px; background:var(--hud-bg-card)}
+table{width:100%; border-collapse:collapse; font-size:12.5px; min-width:920px}
+thead th{
+  position:sticky; top:0; background:var(--hud-bg-elevated); text-align:left;
+  font-family:var(--f-mono); font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--hud-text-dim); font-weight:400; padding:11px 12px; white-space:nowrap;
+  border-bottom:1px solid var(--hud-border-medium)
+}
+tbody td{padding:11px 12px; border-bottom:1px solid var(--hud-border-subtle); vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:rgba(6,182,212,.04)}
+td.url{font-family:var(--f-mono); font-size:11.5px; color:var(--hud-text-secondary); max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+/* tracking strip: 7 micro cells, the row's instrumentation fingerprint */
+.strip{display:inline-flex; gap:3px}
+.cell{
+  width:20px; height:20px; border-radius:2px; display:grid; place-items:center;
+  font-family:var(--f-mono); font-size:8px; letter-spacing:0;
+  border:1px solid var(--hud-border-medium); background:var(--hud-bg-input);
+  color:var(--hud-text-darker); cursor:help
+}
+.cell[data-v=true]{background:var(--hud-accent-green-bg); border-color:rgba(52,211,153,.5); color:var(--hud-accent-green)}
+.cell[data-v=false]{background:rgba(255,180,171,.08); border-color:rgba(255,180,171,.4); color:var(--hud-accent-red)}
+.cell[data-v=null]{border-style:dashed}
+.cell[data-gate=true]{box-shadow:inset 0 -2px 0 var(--hud-accent-cyan)}
+
+/* provisioning meter */
+.meter{display:flex; align-items:center; gap:9px; min-width:104px}
+.meter .bar{flex:1; height:5px; border-radius:3px; background:var(--hud-bg-progress); overflow:hidden}
+.meter .fill{height:100%; border-radius:3px; background:var(--hud-accent-cyan)}
+.meter .fill.ok{background:var(--hud-accent-green)}
+.meter .fill.warn{background:var(--hud-accent-amber)}
+.meter .fill.bad{background:var(--hud-accent-red)}
+.meter .pct{font-family:var(--f-mono); font-size:11px; color:var(--hud-text-dim); min-width:34px; text-align:right}
+
+/* THE SIGNATURE: a bounce cell that refuses to lie */
+.bounce{font-family:var(--f-mono); font-size:12.5px}
+.bounce.locked{
+  display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:3px;
+  color:var(--hud-text-dark); border:1px dashed var(--hud-border-medium);
+  background-image:repeating-linear-gradient(45deg,rgba(148,163,184,.07) 0 5px,transparent 5px 10px)
+}
+.bounce.locked::before{content:"⊘"; color:var(--hud-accent-amber); font-size:12px}
+.bounce.hi{color:var(--hud-accent-red)}
+.bounce.mid{color:var(--hud-accent-amber)}
+.bounce.lo{color:var(--hud-accent-green)}
+
+/* chips */
+.chip{
+  display:inline-block; padding:2px 8px; border-radius:2px; font-family:var(--f-mono);
+  font-size:10px; letter-spacing:.06em; text-transform:uppercase; border:1px solid
+}
+.chip.ok{color:var(--hud-accent-green); border-color:rgba(52,211,153,.4); background:var(--hud-accent-green-bg)}
+.chip.warn{color:var(--hud-accent-amber); border-color:rgba(255,185,95,.4); background:rgba(255,185,95,.08)}
+.chip.bad{color:var(--hud-accent-red); border-color:rgba(255,180,171,.4); background:rgba(255,180,171,.08)}
+.chip.none{color:var(--hud-text-dark); border-color:var(--hud-border-medium)}
+
+/* empty state: an invitation to act rather than an apology */
+.empty-state{
+  padding:40px 28px; text-align:center; border:1px dashed var(--hud-border-medium);
+  border-radius:4px; background:var(--hud-bg-card)
+}
+.empty-state .g{font-size:22px; color:var(--hud-accent-amber); font-family:var(--f-mono)}
+.empty-state h3{margin:12px 0 8px; color:var(--hud-text-secondary)}
+.empty-state p{margin:0 auto; max-width:60ch; color:var(--hud-text-dim); font-size:13px}
+.empty-state code{
+  font-family:var(--f-mono); font-size:11.5px; background:var(--hud-bg-input);
+  border:1px solid var(--hud-border-cyan); border-radius:2px; padding:2px 6px; color:var(--hud-accent-cyan-light)
+}
+
+/* legend + rubric cards */
+.legend{display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:14px; font-size:11.5px; color:var(--hud-text-muted)}
+.legend .li{display:inline-flex; align-items:center; gap:7px}
+.cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(272px,1fr)); gap:12px}
+.card{background:var(--hud-bg-card); border:1px solid var(--hud-border-medium); border-radius:4px; padding:16px 18px}
+.card .t{display:flex; align-items:center; gap:9px; margin-bottom:8px}
+.card .t .n{font-family:var(--f-mono); font-size:10.5px; color:var(--hud-accent-cyan); letter-spacing:.08em}
+.card p{margin:0; font-size:12.5px; color:var(--hud-text-dim)}
+.card.method{border-left:2px solid var(--hud-accent-cyan)}
+.card.open{border-left:2px solid var(--hud-accent-amber)}
+.card.verified{border-left:2px solid var(--hud-accent-green)}
+
+dl.rubric{margin:0; display:grid; grid-template-columns:auto 1fr; gap:10px 16px; align-items:baseline}
+dl.rubric dt{font-family:var(--f-mono); font-size:11.5px; color:var(--hud-accent-cyan-light); white-space:nowrap}
+dl.rubric dd{margin:0; font-size:12.5px; color:var(--hud-text-dim)}
+
+footer{margin-top:64px; padding-top:20px; border-top:1px solid var(--hud-border-medium);
+  font-family:var(--f-mono); font-size:11px; color:var(--hud-text-darker)}
+
+@media (max-width:640px){
+  .wrap{padding:22px 14px 72px}
+  .kpi .v{font-size:22px}
+  dl.rubric{grid-template-columns:1fr; gap:3px 0}
+  dl.rubric dd{margin-bottom:10px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Williams Cancer Institute · search intelligence</div>
+    <h1>Every page, what it tracks,<br>and whether its bounce rate means anything.</h1>
+    <p class="lede">
+      A page-by-page provisioning and engagement audit. Each row reports what is instrumented,
+      whether the page is built correctly for search, whether it makes a point and asks for
+      something, and where the instrumentation can support it, why visitors leave.
+    </p>
+    <div class="sources" id="sources"></div>
+    <div class="stamp" id="stamp"></div>
+  </header>
+
+  <!-- SIGNATURE: state the gate up front, because it governs how to read the table -->
+  <div class="gate">
+    <div class="eyebrow">Read this first</div>
+    <h2>A bounce rate is a measure of your tracking before it is a measure of your visitors.</h2>
+    <p>
+      GA4 does not observe bounces. It observes <em>engaged</em> sessions and subtracts them :
+      a session counts as engaged if it runs past ten seconds, reaches a second page, or fires a
+      conversion. So a page with no scroll depth, no CTA click and no conversion event can post an
+      alarming bounce rate while readers sit and read it, and a page with a chatty automatic event
+      can post a comfortable one while nobody ever makes contact.
+    </p>
+    <p>
+      This dashboard therefore treats bounce as a <strong>derived, gateable</strong> figure. Where a
+      page is missing an element that engagement depends on, the bounce cell renders
+      <span class="bounce locked">locked</span> instead of a number, and the fix listed is
+      an instrumentation fix rather than a copy change. Advice given on an unmeasured page is guesswork wearing a
+      percentage sign.
+    </p>
+    <div class="eq">bounceRate = 1 − engagementRate &nbsp;·&nbsp; engaged = &gt;10s ∨ 2+ views ∨ conversion</div>
+  </div>
+
+  <section>
+    <div class="shead"><div><div class="eyebrow">Roll-up</div><h2>Sitewide</h2></div></div>
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <section>
+    <div class="shead">
+      <div><div class="eyebrow">Inventory</div><h2>Pages, instrumentation and provisioning</h2></div>
+      <div class="sub">
+        The tracking strip reads left to right in the order below. A cyan underline marks an element
+        that gates the bounce figure. Provisioning is weighted: status and indexability carry the
+        most, because a page that 404s or carries a noindex makes every other signal moot.
+      </div>
+    </div>
+    <div id="pages-host"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section>
+    <div class="shead">
+      <div><div class="eyebrow">Message</div><h2>Takeaway and call-to-action audit</h2></div>
+      <div class="sub">
+        For each page: does it leave the reader with one clear point, and does it ask for a specific
+        next step while that point is still in view.
+      </div>
+    </div>
+    <div id="cta-host"></div>
+  </section>
+
+  <section>
+    <div class="shead">
+      <div><div class="eyebrow">Diagnosis</div><h2>Lowering the bounce rate</h2></div>
+      <div class="sub">
+        Ranked by expected effect on engaged sessions. Instrumentation fixes sort first: not because
+        they are easy, but because the pages behind them cannot be judged until they land.
+      </div>
+    </div>
+    <div id="bounce-host"></div>
+  </section>
+
+  <section>
+    <div class="shead">
+      <div><div class="eyebrow">Provenance</div><h2>What is established, and what is still open</h2></div>
+      <div class="sub">Findings carried from session recon. Verified means observed directly; open means still being resolved.</div>
+    </div>
+    <div class="cards" id="discovery"></div>
+  </section>
+
+  <section>
+    <div class="shead">
+      <div><div class="eyebrow">Method</div><h2>How each column is scored</h2></div>
+      <div class="sub">Published so a number on this page can be argued with.</div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="t"><span class="n">TRACKING</span><h3>Instrumentation elements</h3></div>
+        <dl class="rubric" id="rub-track"></dl>
+      </div>
+      <div class="card">
+        <div class="t"><span class="n">PROVISIONING</span><h3>Search-readiness elements</h3></div>
+        <dl class="rubric" id="rub-prov"></dl>
+      </div>
+    </div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+/* ============================================================================
+   WCI SEO Intelligence: data layer
+   ----------------------------------------------------------------------------
+   This file is REGENERATED from verified pulls. It must never contain an
+   invented number. Every metric is either a real value from a named source or
+   null, and null renders as an explicit "not pulled" state in the UI.
+
+   Source of truth for each block:
+     ga4        -> data/seo/ga4-pages-28d.json, ga4-landing-bounce-28d.json
+     gsc        -> data/seo/gsc-pages-28d.json, gsc-queries-28d.json
+     gtm        -> data/seo/gtm-container.json
+     crawl      -> data/seo/site-pages.json
+     config     -> data/seo/ga4-config.json
+
+   Provenance discipline: `sources[].state` is one of
+     verified : we pulled it, numbers are real
+     pending  : pull in flight
+     blocked  : access wall, see `blocker` for the exact unblock command
+   ========================================================================== */
+
+window.SEO_DATA = {
+
+  meta: {
+    property: "williamscancerinstitute.com",
+    propertyConfirmed: false,          // set true once GA4 accountSummaries confirms
+    generatedAt: "2026-09-17T14:55:00-07:00",
+    window: "TWO windows, never mixed: 28d measured (primary) + 90d measured-by-channel",
+    host: "MacTop-Pro",
+    branch: "seo-dashboard-analytics-integration",
+    parentApp: {
+      name: "WCI Marketing Intelligence Dashboard v3",
+      url: "https://lexical-descent-478201-s3.web.app/",
+      buildCommit: "abed13c2a1c4a7eed50b065d7437fa3c414147e8",
+      buildBranch: "feat/ai-copilot",
+      repo: null,                       // NOT FOUND yet: archaeology agent hunting
+      ga4Property: "386650747",         // VERIFIED in-app 2026-09-17
+      bigqueryEvents: "analytics_279063369.events_*",
+      tabCount: 23,
+      hasSearchConsole: false,          // VERIFIED absent: no collision with our build
+      hasOrganicSeoTab: false
+    }
+  },
+
+  /* Data-source health. Drives the header badge row. */
+  sources: [
+    { id: "ga4",   label: "GA4 (channel)",   state: "verified", detail: "Channel-level engagement/bounce MEASURED from 90d export; 56,571 sessions", blocker: null },
+    { id: "ga4pg", label: "GA4 (per-page)",  state: "blocked",  state2: "modelled",
+      detail: "Per-page engagement rate does NOT exist in the export. Page bounce is MODELLED (19.0% MAPE): rank with it, never quote it.",
+      blocker: "Enable Analytics Data API on OAuth project 565038237200, or build a GA4 Exploration (landingPage x engagedSessions)." },
+    { id: "gsc",   label: "Search Console",  state: "blocked",  detail: "ZERO properties visible. Verified twice: audit identity and the mini gog token that carries searchconsole scope both return none.", blocker: "WCI must add winn@williamscancerinstitute.com to the GSC property (asked via #wci-agents)." },
+    { id: "gtm",   label: "Tag Manager",     state: "verified", detail: "Both containers parsed field-by-field from exports (GTM-THGJ73L v22, GTM-TN7XMJQ v25).", blocker: "No GTM CONSOLE access: no snapshot, therefore no rollback path for any tag change." },
+    { id: "crawl", label: "Site crawl",      state: "verified", detail: "616 sitemap URLs crawled; 605 returned HTTP 200. Tag presence read from the CONTAINER rather than from page source (GTM injects at runtime).", blocker: null },
+    { id: "copy",  label: "CTA / takeaway",  state: "verified", detail: "57 URLs audited (40 live pages + top 15 posts). 8 lack a clear takeaway, 33 have no/vague CTA, 43 have a placement problem, 47 compliance flags across 25 pages.", blocker: null },
+    { id: "prior", label: "Prior SEO audit", state: "verified", detail: "FOUND: research/perf-review-2026-09-17/ (51 files, pulled 2026-09-17) + strategic-overhaul-2026-09-02 STRATEGY.md", blocker: null }
+  ],
+
+  /* Sitewide roll-up. null = not pulled. Never guess these. */
+  totals90: {
+    // MEASURED, 90-day window. Counts carry a ~3x inflation caveat (see discovery);
+    // RATES are robust because users dedupe on the shared _ga cookie and events do not.
+    sessions: 56571,
+    users: null,                    // 38,286 reported but stream-inflated; withheld rather than printed
+    engagementRate: 0.3023,
+    bounceRate: 0.6977,
+    avgSessionDuration: 72.5,
+    conversions: null,              // 2,099 GA4 "key events" are form submits; Ads' 658 are 62% page loads. Neither measures a lead.
+    pagesInSitemap: null,           // awaiting crawl lane
+    pagesWithTraffic: 569,
+    pagesFullyTracked: 0,           // no page has scroll+CTA+conversion: zero engagement events exist property-wide
+    pagesFullyProvisioned: null
+  },
+
+  /* MEASURED per-channel engagement/bounce, 90d. Trustworthy: unlike per-page. */
+  byChannel90: [
+    { channel: "Paid Search",    sessions: 15511, engagementRate: 0.3382, bounceRate: 0.6618, avgEngagement: 65.9 },
+    { channel: "Direct",         sessions: 14256, engagementRate: 0.2076, bounceRate: 0.7924, avgEngagement: 39.2 },
+    { channel: "Organic Search", sessions: 12323, engagementRate: 0.5158, bounceRate: 0.4842, avgEngagement: 155.3 },
+    { channel: "Paid Social",    sessions:  9127, engagementRate: 0.1116, bounceRate: 0.8884, avgEngagement: 27.5 },
+    { channel: "Organic Social", sessions:  3894, engagementRate: 0.2915, bounceRate: 0.7085, avgEngagement: 67.6 },
+    { channel: "Paid Other",     sessions:   410, engagementRate: 0.2000, bounceRate: 0.8000, avgEngagement: 42.8 },
+    { channel: "Unassigned",     sessions:   325, engagementRate: 0.0554, bounceRate: 0.9446, avgEngagement: 54.4 },
+    { channel: "Cross-network",  sessions:   270, engagementRate: 0.4185, bounceRate: 0.5815, avgEngagement: 56.0 },
+    { channel: "Referral",       sessions:   252, engagementRate: 0.4286, bounceRate: 0.5714, avgEngagement: 113.3 },
+    { channel: "AI Assistant",   sessions:   167, engagementRate: 0.3114, bounceRate: 0.6886, avgEngagement: 46.9 },
+    { channel: "Organic Video",  sessions:    36, engagementRate: 0.3611, bounceRate: 0.6389, avgEngagement: 111.9 }
+  ],
+
+  /* PRIMARY: 28-day window, MEASURED live in the GA4 UI 2026-08-20 -> 09-16.
+     Un-modelled. This is what the dashboard headline uses. NEVER chart it in the
+     same series as the 90d block: different window AND different method. */
+  totals: {
+    window: "28d (2026-08-20 -> 2026-09-16), MEASURED",
+    sessions: 11899,
+    users: 7497,
+    views: 38496,
+    engagedSessions: 5053,
+    engagementRate: 0.4247,
+    bounceRate: 0.5753,
+    keyEvents: 112,
+    keyEventRate: 0.0062,
+    distinctPagePaths: 491,
+    landingPages: 462,
+    conversions: null,        // key events are form submits only; Ads' 658 are 62% page loads
+    pagesInSitemap: 616,
+    pagesReturning200: 616,
+    pagesWithTraffic: null,
+    pagesZeroTraffic: 189,    // 30.7% of the sitemap
+    pagesMissingH1: 546,      // 88.6% of 616
+    pagesMissingMeta: 470,    // 76.3% of 616
+    pagesFullyTracked: 0      // zero engagement events exist property-wide
+  },
+
+  byChannel: [
+    { channel: "Organic Search", sessions: 6348, bounceRate: 0.478, measured: true },
+    { channel: "Direct",         sessions: 3967, bounceRate: 0.722, measured: true },
+    { channel: "Organic Social", sessions: 1281, bounceRate: 0.614, measured: true },
+    { channel: "Unassigned",     sessions:   74, bounceRate: 0.960, measured: true },
+    { channel: "Paid Search",    sessions:  101, bounceRate: null,  measured: true, note: "collapsed from 15,511 in the 90d window: spend change rather than an SEO event" }
+  ],
+
+  /* ---------------------------------------------------------------------------
+     TRACKING ELEMENTS: the columns of the tracking strip.
+     `gates` marks the elements that must exist before a bounce-rate number is
+     trustworthy. GA4 scores a session "engaged" at >10s OR 2+ views OR a
+     conversion, so with no engagement instrumentation the bounce figure is an
+     artifact of the setup rather than a measure of reader behaviour.
+     ------------------------------------------------------------------------ */
+  trackingElements: [
+    { id: "ga4_pv",     label: "GA4 pageview",    short: "PV",   gates: true,  why: "Without it the page is invisible to analytics entirely." },
+    { id: "gtm",        label: "GTM container",   short: "GTM",  gates: false, why: "Delivery mechanism for every other tag." },
+    { id: "scroll",     label: "Scroll depth",    short: "SCR",  gates: true,  why: "The only signal that separates a reader from a bouncer on long-form copy." },
+    { id: "cta_click",  label: "CTA click event", short: "CTA",  gates: true,  why: "Turns intent into a measurable action; required to judge CTA quality." },
+    { id: "tel_click",  label: "Phone-tap event", short: "TEL",  gates: false, why: "Primary conversion for a clinic; a tap is a lead." },
+    { id: "form",       label: "Form / conversion", short: "CNV", gates: true, why: "Marks the session engaged and closes the funnel." },
+    { id: "outbound",   label: "Outbound click",  short: "OUT",  gates: false, why: "Catches traffic leaking to third-party booking or trial registries." }
+  ],
+
+  /* ---------------------------------------------------------------------------
+     PROVISIONING ELEMENTS: is the page correctly built for search at all.
+     ------------------------------------------------------------------------ */
+  provisioningElements: [
+    { id: "http200",    label: "HTTP 200",           weight: 3, why: "A grep for a tag on a 404 body returns a FALSE CLEAN. Status is checked first, always." },
+    { id: "indexable",  label: "Indexable",          weight: 3, why: "noindex or a robots block makes every other signal moot." },
+    { id: "title",      label: "Title tag",          weight: 2, why: "Primary relevance and the clickable line in the SERP." },
+    { id: "meta",       label: "Meta description",   weight: 1, why: "Does not rank, but drives CTR on an impression already won." },
+    { id: "canonical",  label: "Canonical",          weight: 2, why: "Consolidates duplicates; wrong canonicals silently delist pages." },
+    { id: "h1",         label: "Single H1",          weight: 1, why: "States the page's subject to both reader and crawler." },
+    { id: "og",         label: "OG / social image",  weight: 1, why: "Governs how a shared link renders; a bare link suppresses clicks." },
+    { id: "schema",     label: "Schema markup",      weight: 2, why: "Physician and MedicalClinic entities are the eligibility gate for rich results." },
+    { id: "sitemap",    label: "In sitemap",         weight: 1, why: "Discovery path for pages with no internal links." },
+    { id: "internal",   label: "Inbound internal links", weight: 1, why: "An orphan page inherits no authority and rarely ranks." }
+  ],
+
+  /* One row per URL. Populated from the crawl joined to GA4 + GSC.
+     Row shape:
+     {
+       url, status, title, metaDescription, canonical, h1, indexable,
+       tracking:     { ga4_pv:true|false|null, ... },
+       provisioning: { http200:true|false|null, ... },
+       metrics:      { sessions, pageviews, bounceRate, engagementRate, avgEngagement,
+                       entrances, conversions, clicks, impressions, ctr, position },
+       content:      { hasPrimaryCta, ctaAboveFold, ctaCount, ctaText,
+                       hasClearTakeaway, takeaway, wordCount, readingGrade },
+       findings:     [ { severity, text } ]
+     }
+  */
+  pages: [],
+
+  /* Ranked remediation. Populated only from observed data: an empty list here
+     means we have not yet earned the right to give advice. */
+  bounceFindings: [],
+
+  /* Queries from GSC, for the content/intent gap analysis. */
+  queries: [],
+
+  /* Verified discovery notes carried over from session recon. These are real. */
+  discovery: [
+    {
+      kind: "verified",
+      title: "The target app already exists and is live",
+      body: "https://lexical-descent-478201-s3.web.app/ serves \"WCI Marketing Intelligence Dashboard v3\", built from branch feat/ai-copilot at commit abed13c2. It is a Vite build (assets/main-D1m5ocLh.js) on Firebase Hosting under GCP project lexical-descent-478201. The SEO work should extend this app rather than stand beside it."
+    },
+    {
+      kind: "verified",
+      title: "Design tokens lifted from the live stylesheet",
+      body: "assets/main-CBJ4R48G.css defines a --hud-* custom-property system: deep navy #071325 base, #101c2e panels, #111827 cards, cyan #06b6d4/#4cd7f6 accents, #34d399 green, #ffb95f amber, #ffb4ab red, #d7e3fc primary text. Fonts: Space Grotesk, Inter, JetBrains Mono. This dashboard reuses those exact values so it reads as one system."
+    },
+    {
+      kind: "open",
+      title: "The dashboard's source repo is not yet located",
+      body: "Commit abed13c2 is absent from Winnsolutionsadmin/williams-cancer and /wci-p10-33c4d7, and a GitHub commit search returns nothing. Until the repo is found, this dashboard ships standalone and is merged in afterwards."
+    },
+    {
+      kind: "verified",
+      title: "Routing: a williams-cancer deliverable rather than jason-williams-md-site",
+      body: "ClickUp maps williams-cancer to list 901820267451 under folder \"Williams Cancer Institute\". jasonwilliamsmd.com is not live (blocked on Jason's claims review), so live-page bounce analysis concerns williamscancerinstitute.com."
+    },
+    {
+      kind: "verified",
+      title: "The parent dashboard has no organic-search coverage at all",
+      body: "Walked all 23 tabs while signed in. There is no Search Console integration and no organic-SEO tab. \"Search Terms\" and \"Search Intelligence\" are both entirely Google Ads PAID search data: impression share, quality score, ad rank, query-triggered-ad reports: not organic rankings. The only organic surface is a single Organic-Search row inside the GA4 channel table plus an all-channel Top-Pages table. Absent: GSC queries/impressions/CTR/position, rank tracking, index & crawl status, Core Web Vitals, backlinks, query-level organic landing pages. This SEO build collides with nothing."
+    },
+    {
+      kind: "verified",
+      title: "GA4 arrives by BigQuery export rather than gtag: property 386650747",
+      body: "The app reads three BigQuery sources: GA4 events (analytics_279063369.events_*, fresh), Google Ads (google_ads_wci.ads_*), and a static geo lookup (wci_ml.geo_target_constants). No GA4 Measurement ID is present client-side because nothing is collected by the dashboard itself. Our page-level pull should target property 386650747 and cross-reference the existing Organic-Search channel segment rather than re-pulling GA4 wholesale."
+    },
+    {
+      kind: "open",
+      title: "Google Ads data in the parent dashboard is roughly 59 days stale",
+      body: "Every paid KPI reads $0 across tabs because the google_ads_wci.ads_* export has not refreshed in about two months. Unrelated to SEO, but it means any blended or paid-vs-organic comparison built on that source is currently wrong, and it should not be wired into the SEO view until the export is repaired."
+    },
+    {
+      kind: "open",
+      title: "The parent dashboard's AI copilot is running on an Anthropic pay-per-token API key",
+      body: "The copilot does schema-aware text-to-SQL against BigQuery and its credential-status list includes an Anthropic API key, with captions reading \"Source: Claude AI\". Standing fleet rule is subscription-only: no sk-ant-api key, no console billing. This is a live billing exposure in a client-facing app and needs a decision: route it through the teamclaude proxy or accept the spend deliberately."
+    },
+    {
+      kind: "verified",
+      title: "537 of 605 live pages have no H1, and 461 have no meta description",
+      body: "Crawl of the full sitemap found all 616 URLs return HTTP 200, but 546 (88.6%) have no h1 element at all and 470 (76.3%) have no meta description. Hand-verified worst case: /can-a-biopsy-trigger-cancer-spread/ is the number two organic landing page at 681 sessions and has zero h1 and no meta description. Also: author-sitemap.xml is listed in the sitemap index but 404s; 189 of 616 sitemap URLs (30.7%) received zero traffic; 47 GA4 paths are absent from the sitemap entirely, and /404 itself took 60 views."
+    },
+    {
+      kind: "open",
+      title: "The site-wide primary CTA points at a Vite dev-server shell in production",
+      body: "Every \"MAKE AN APPOINTMENT\" button targets erp.williamscancerinstitute.com/contact-form, which serves a 14.9 KB shell containing zero <form>, zero <input>, no h1, and live /@vite/client + /@react-refresh + unbundled /src/main.jsx. Crawlers and language models get nothing from it. NOT yet claimed as broken for humans: that needs a rendered-browser check. Same class: /contact-form returns 404 on the main host while taking 901 views in 28 days (the highest-traffic dead URL on the estate), /wci/ 404s with 315 views, two identical appointment buttons in one footer block point to two DIFFERENT hosts (erp. React and crm. Bubble), and the phone number text and href disagree on every page (+1-424-460-8828 shown, tel:+13107597911 linked)."
+    },
+    {
+      kind: "verified",
+      title: "Copy audit: 33 of 55 live pages have no CTA or only a vague one",
+      body: "57 URLs audited with HTTP status verified before any content extraction. 8 of 55 live pages have no clear takeaway. 33 have no or vague CTA (9 with zero in-content CTA, 24 vague). 43 have a placement problem: 20 use a shared #start scroll anchor rather than an action, and 23 put the primary CTA below the fold. On 20 condition/procedure pages the real ask sits at about 97% page depth. The top 15 blog posts carry 11,400+ views in 28 days with ZERO in-content CTA and no h1 (the title renders as an h2). /dr-jason-williams: the #2 page, holding the one verifiable credential: offers one in-content CTA reading \"Click here\" at 20% depth, so there is no way to contact him from his own page. /procedures/ has 7 CTAs, all the identical string \"Read More\", and no conversion CTA at all."
+    },
+    {
+      kind: "open",
+      title: "Claims and compliance findings are held in the internal record",
+      body: "A separate copy audit produced claims, credential and disclosure findings across the estate. Those are client-confidential and are tracked in the internal red-flag audit with risk-level and blast-radius scoring. They are deliberately omitted from this public view; ask for the internal artifact if you need them."
+    },
+    {
+      kind: "open",
+      title: "Paid traffic collapsed between the two windows: annotate every trend chart",
+      body: "The 90-day window shows 15,511 Paid Search and 9,127 Paid Social sessions. The trailing 28 days show 101 and 6. Any 28d-vs-90d comparison will read as an SEO catastrophe when it is a spend change: the Ads account has been dark since Jul 20. Never present that delta without the annotation."
+    },
+    {
+      kind: "open",
+      title: "GA4 works in the browser but the REST API is disabled: automation is blocked",
+      body: "GA4 property 279063369 reads fine interactively as winn@williamscancerinstitute.com. But analyticsdata.googleapis.com and analyticsadmin.googleapis.com are DISABLED on Cloud project 565038237200, which is gog's only OAuth client, so no account can route around it. Both are free and need no billing. Enabling them requires a human browser session because Cloud Console demanded password re-verification. Search Console returns real 403 insufficient-permission errors (so its API IS enabled): that one is purely a grant."
+    },
+    {
+      kind: "open",
+      title: "Cleanup owed: a GA4 Exploration was left in the client property",
+      body: "During the blocked per-page bounce attempt, one GA4 Exploration named \"Last 28 days\" was created in the client's property and not removed. Nothing else was enabled, written or configured on any Google surface. It should be deleted by hand if a clean Explorations list matters to WCI."
+    },
+    {
+      kind: "method",
+      title: "Two false-clean traps that were defused, and one that remains",
+      body: "First: non-200 pages carry tag_scan_trustworthy:false and were left unscanned rather than reported clean: grepping a 404 body for a tag yields a false clean. Second, the INVERSE trap: fbq_fn:false on every page means only \"not in the delivered HTML\", NOT \"no Meta pixel\": GTM injects it at runtime, so tag truth must be read from the container, never the page source. Third, a live one: a case-insensitive ID regex false-positived on the g-recaptcha CSS class and produced 1,547 bogus tag IDs before removal; after cleanup GTM-THGJ73L is the only container ID in delivered HTML sitewide."
+    },
+    {
+      kind: "open",
+      title: "Per-page bounce rate is MODELLED, not measured: rank with it, never quote it",
+      body: "The GA4 landing-page export has no engagement-rate and no engaged-sessions column; its full column set is Landing page, Sessions, Active users, New users, Average engagement time per session, Key events, Total revenue, Session key event rate. So 1 - engagementRate cannot be applied per page from this source. Page figures are modelled as avgEngagementSeconds / 239.7s (the site mean per engaged session), back-tested against the 11 channels where both values ARE measured: session-weighted MAPE 19.0%, over-predicting organic by 25.6% and under-predicting Paid Search by 18.7%. Channel-level bounce is measured and trustworthy. Unblock: enable the Analytics Data API on OAuth project 565038237200, or build a GA4 Exploration of landingPage x engagedSessions."
+    },
+    {
+      kind: "verified",
+      title: "Zero engagement events exist property-wide: 70 pages hold real attention that records nothing",
+      body: "GA4 Enhanced Measurement reads \"Measuring: Page views\" only, on all three streams, and the 90-day event vocabulary is just page_view, session_start, first_visit, user_engagement and five form submits. No scroll, click, outbound, download, video or site-search event exists anywhere. Consequence: engagement is decided purely by the 10-second stopwatch, and a content page without a form CANNOT record a key event however well it performs. 70 pages totalling 9,413 sessions average 135.8s of dwell with 0 key events each: roughly 355 hours of measured reading attention recording nothing. Do not cut or deprioritise those pages on their 0%."
+    },
+    {
+      kind: "verified",
+      title: "Triple GA4 firing confirmed arithmetically at 2.98x",
+      body: "One rule fires G-G605HWZX4E, G-KZVCK8E1JZ and G-B1TT7NJLNN: all three streams of the same property: on gtm.init. Measured: first_visit 111,152 / 37,308 users = 2.98x where correct is ~1.0; /wci reports 31,486 NEW users against 10,553 ACTIVE, which is arithmetically impossible clean. Users dedupe on the shared _ga cookie; events do not. So user counts are roughly right, every event count is ~3x inflated, and any rate computed as events / users is wrong by ~3x. Never mix the two in one ratio. There is also no surface dimension: stream, measurement id and event name all lie, which is why a \"WEB ERP\" stream reports live traffic while the ERP carries no container at all."
+    },
+    {
+      kind: "verified",
+      title: "The worst genuine content failure is the founder's own bio page",
+      body: "/dr-jason-williams takes 6,145 sessions at 13.3s average engagement: barely past GA4's 10s bar: with 4 key events across all 6,145. This is page-specific rather than an audience problem: /procedures holds 162.2s and /can-a-biopsy-trigger-cancer-spread holds 167.0s on the same domain, so this audience demonstrably will read long-form here. Modelled upside if it reached the site median: about 2,136 additional engaged sessions per 90 days, or roughly 712 after the 3x haircut."
+    },
+    {
+      kind: "method",
+      title: "Why bounce rate is treated as a derived, gateable metric here",
+      body: "In GA4 bounceRate is exactly 1 − engagementRate, and a session counts as engaged on any of: duration >10s, 2+ pageviews, or a conversion. Bounce therefore measures instrumentation as much as behaviour. A long essay with no scroll or CTA events can post a poor bounce while readers read; a page with a chatty auto-event can post a healthy one while nobody converts. Any page missing a gating tracking element renders its bounce cell LOCKED rather than advised."
+    }
+  ]
+};
+
+</script>
+<script>
+(function(){
+  var D = window.SEO_DATA, $ = function(id){ return document.getElementById(id); };
+  var esc = function(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); };
+  var pct = function(v){ return v==null ? null : (v*100).toFixed(1)+"%"; };
+  var n0  = function(v){ return v==null ? null : v.toLocaleString("en-US"); };
+
+  /* ---- source badges ---- */
+  $("sources").innerHTML = D.sources.map(function(s){
+    return '<span class="src" data-state="'+s.state+'" title="'+esc(s.detail)+'">'
+      + '<span class="dot"></span><span class="lbl">'+esc(s.label)+'</span>'
+      + '<span class="st">'+esc(s.state)+'</span></span>';
+  }).join("");
+
+  /* ---- stamp ---- */
+  var m = D.meta;
+  $("stamp").innerHTML = [
+    ["Property", m.property + (m.propertyConfirmed ? "" : " (unconfirmed)")],
+    ["Window", m.window],
+    ["Generated", m.generatedAt.replace("T"," ").slice(0,16)],
+    ["Branch", m.branch],
+    ["Parent app", m.parentApp.name],
+    ["Parent build", m.parentApp.buildBranch + " @ " + m.parentApp.buildCommit.slice(0,8)],
+    ["Parent repo", m.parentApp.repo || "not located"]
+  ].map(function(r){ return "<span><b>"+esc(r[0])+"</b> "+esc(r[1])+"</span>"; }).join("");
+
+  /* ---- kpis ---- */
+  var t = D.totals;
+  var kpiDefs = [
+    ["Sessions", n0(t.sessions), "measured · 28d"],
+    ["Users", n0(t.users), "active users · 28d"],
+    ["Engagement rate", pct(t.engagementRate), "measured, un-modelled"],
+    ["Bounce rate", pct(t.bounceRate), "1 − engagement rate · sitewide"],
+    ["Key events", n0(t.keyEvents), pct(t.keyEventRate) + " of sessions: form submits only"],
+    ["Pages in sitemap", n0(t.pagesInSitemap), n0(t.pagesReturning200) + " returned HTTP 200"],
+    ["Zero-traffic pages", n0(t.pagesZeroTraffic), "30.7% of the sitemap"],
+    ["Pages missing H1", n0(t.pagesMissingH1), "of " + n0(t.pagesReturning200) + " crawled"],
+    ["Pages missing meta", n0(t.pagesMissingMeta), "of " + n0(t.pagesReturning200) + " crawled"],
+    ["Fully tracked", n0(t.pagesFullyTracked), "zero engagement events exist"]
+  ];
+  $("kpis").innerHTML = kpiDefs.map(function(k){
+    var has = k[1] !== null;
+    return '<div class="kpi"><div class="k">'+esc(k[0])+'</div>'
+      + '<div class="v'+(has?"":" empty")+'">'+(has?esc(k[1]):"not pulled")+'</div>'
+      + '<div class="s">'+esc(k[2])+'</div></div>';
+  }).join("");
+
+  /* ---- legend ---- */
+  $("legend").innerHTML =
+    D.trackingElements.map(function(e){
+      return '<span class="li"><span class="cell" data-v="true"'+(e.gates?' data-gate="true"':'')+'>'
+        + esc(e.short)+'</span>'+esc(e.label)+(e.gates?" · gates bounce":"")+'</span>';
+    }).join("")
+    + '<span class="li"><span class="cell" data-v="false">·</span>absent</span>'
+    + '<span class="li"><span class="cell" data-v="null">·</span>unverified</span>';
+
+  /* ---- rubrics ---- */
+  $("rub-track").innerHTML = D.trackingElements.map(function(e){
+    return "<dt>"+esc(e.short)+"</dt><dd><strong>"+esc(e.label)+"</strong>: "+esc(e.why)+"</dd>";
+  }).join("");
+  $("rub-prov").innerHTML = D.provisioningElements.map(function(e){
+    return "<dt>×"+e.weight+"</dt><dd><strong>"+esc(e.label)+"</strong>: "+esc(e.why)+"</dd>";
+  }).join("");
+
+  /* ---- helpers ---- */
+  function emptyState(host, glyph, title, body){
+    $(host).innerHTML = '<div class="empty-state"><div class="g">'+glyph+'</div><h3>'+esc(title)+'</h3><p>'+body+'</p></div>';
+  }
+  function provScore(p){
+    var tot=0, got=0, any=false;
+    D.provisioningElements.forEach(function(e){
+      var v = p.provisioning ? p.provisioning[e.id] : null;
+      if (v===null || v===undefined) return;
+      any=true; tot+=e.weight; if(v) got+=e.weight;
+    });
+    return any && tot ? got/tot : null;
+  }
+  function bounceCell(p){
+    var missing = D.trackingElements.filter(function(e){
+      return e.gates && p.tracking && p.tracking[e.id]===false;
+    }).map(function(e){ return e.label; });
+    var b = p.metrics ? p.metrics.bounceRate : null;
+    if (missing.length) {
+      return '<span class="bounce locked" title="Not trustworthy: missing: '+esc(missing.join(", "))+'">locked</span>';
+    }
+    if (b==null) return '<span class="bounce" style="color:var(--hud-text-darker)">:</span>';
+    var cls = b>=.7 ? "hi" : b>=.5 ? "mid" : "lo";
+    return '<span class="bounce '+cls+'">'+pct(b)+'</span>';
+  }
+
+  /* ---- page inventory ---- */
+  if (!D.pages.length) {
+    emptyState("pages-host","⊘","No verified page data yet",
+      "The crawl and the GA4 page-level pull are still running. This table stays empty on purpose: "
+      + "a page inventory with invented rows is worse than no inventory. It fills the moment "
+      + "<code>data/seo/site-pages.json</code> and <code>data/seo/ga4-pages-28d.json</code> land, "
+      + "with no change to this file beyond <code>data.js</code>.");
+  } else {
+    var head = ["Page","Status","Tracking","Provisioning","Sessions","Bounce","Clicks","Impr.","Pos.","CTA","Takeaway"];
+    var rows = D.pages.map(function(p){
+      var s = provScore(p);
+      var cls = s==null?"":s>=.9?"ok":s>=.7?"warn":"bad";
+      var strip = D.trackingElements.map(function(e){
+        var v = p.tracking ? p.tracking[e.id] : null;
+        return '<span class="cell" data-v="'+(v===true?"true":v===false?"false":"null")+'"'
+          + (e.gates?' data-gate="true"':'') + ' title="'+esc(e.label)+'">'+esc(e.short)+'</span>';
+      }).join("");
+      var mt = p.metrics||{}, ct = p.content||{};
+      return "<tr>"
+        + '<td class="url" title="'+esc(p.url)+'">'+esc(p.url)+"</td>"
+        + '<td><span class="chip '+(p.status===200?"ok":"bad")+'">'+esc(p.status==null?"?":p.status)+"</span></td>"
+        + '<td><span class="strip">'+strip+"</span></td>"
+        + '<td><span class="meter"><span class="bar"><span class="fill '+cls+'" style="width:'
+            +(s==null?0:Math.round(s*100))+'%"></span></span><span class="pct">'
+            +(s==null?":":Math.round(s*100)+"%")+"</span></span></td>"
+        + '<td class="num">'+(n0(mt.sessions)||":")+"</td>"
+        + "<td>"+bounceCell(p)+"</td>"
+        + '<td class="num">'+(n0(mt.clicks)||":")+"</td>"
+        + '<td class="num">'+(n0(mt.impressions)||":")+"</td>"
+        + '<td class="num">'+(mt.position==null?":":mt.position.toFixed(1))+"</td>"
+        + '<td><span class="chip '+(ct.hasPrimaryCta===true?(ct.ctaAboveFold?"ok":"warn"):ct.hasPrimaryCta===false?"bad":"none")+'">'
+            +(ct.hasPrimaryCta===true?(ct.ctaAboveFold?"in view":"below"):ct.hasPrimaryCta===false?"none":"?")+"</span></td>"
+        + '<td><span class="chip '+(ct.hasClearTakeaway===true?"ok":ct.hasClearTakeaway===false?"bad":"none")+'">'
+            +(ct.hasClearTakeaway===true?"clear":ct.hasClearTakeaway===false?"missing":"?")+"</span></td>"
+        + "</tr>";
+    }).join("");
+    $("pages-host").innerHTML = '<div class="tbl-scroll"><table><thead><tr>'
+      + head.map(function(h){ return "<th>"+esc(h)+"</th>"; }).join("")
+      + "</tr></thead><tbody>"+rows+"</tbody></table></div>";
+  }
+
+  /* ---- cta audit ---- */
+  var withContent = D.pages.filter(function(p){ return p.content; });
+  if (!withContent.length) {
+    emptyState("cta-host","◌","Copy audit not yet run",
+      "Each page gets read for one question: can a visitor state the point in a sentence, and is "
+      + "there a specific next step while that point is still on screen. Pages are scored only after "
+      + "their HTML is confirmed at HTTP 200: grepping a 404 body yields a false clean, a mistake "
+      + "already recorded against this property.");
+  } else {
+    $("cta-host").innerHTML = '<div class="tbl-scroll"><table><thead><tr>'
+      + ["Page","Takeaway","Primary CTA","In view","CTA count","Words"].map(function(h){return "<th>"+esc(h)+"</th>";}).join("")
+      + "</tr></thead><tbody>" + withContent.map(function(p){
+        var c=p.content;
+        return "<tr>"
+          + '<td class="url">'+esc(p.url)+"</td>"
+          + "<td>"+(c.takeaway?esc(c.takeaway):'<span class="chip bad">none stated</span>')+"</td>"
+          + "<td>"+(c.ctaText?esc(c.ctaText):'<span class="chip bad">none</span>')+"</td>"
+          + '<td><span class="chip '+(c.ctaAboveFold?"ok":"warn")+'">'+(c.ctaAboveFold?"yes":"no")+"</span></td>"
+          + '<td class="num">'+(c.ctaCount==null?":":c.ctaCount)+"</td>"
+          + '<td class="num">'+(n0(c.wordCount)||":")+"</td></tr>";
+      }).join("") + "</tbody></table></div>";
+  }
+
+  /* ---- bounce diagnosis ---- */
+  if (!D.bounceFindings.length) {
+    emptyState("bounce-host","△","No recommendations yet by design",
+      "Remediation appears here once there is measured behaviour to remediate. Writing bounce advice "
+      + "before the engagement events exist would produce confident guesses, which is the specific "
+      + "failure this dashboard is built to avoid.");
+  } else {
+    $("bounce-host").innerHTML = '<div class="cards">' + D.bounceFindings.map(function(f,i){
+      return '<div class="card"><div class="t"><span class="n">'+String(i+1).padStart(2,"0")+'</span>'
+        + '<h3>'+esc(f.title)+'</h3></div><p>'+esc(f.body)+'</p>'
+        + (f.impact?'<p style="margin-top:8px"><span class="chip warn">'+esc(f.impact)+'</span></p>':'')
+        + '</div>';
+    }).join("") + "</div>";
+  }
+
+  /* ---- discovery ---- */
+  $("discovery").innerHTML = D.discovery.map(function(d){
+    return '<div class="card '+esc(d.kind)+'"><div class="t"><span class="n">'
+      + esc(d.kind.toUpperCase())+'</span><h3>'+esc(d.title)+'</h3></div><p>'+esc(d.body)+'</p></div>';
+  }).join("");
+
+  /* ---- footer ---- */
+  $("footer").textContent = "WCI SEO Intelligence · data layer " + m.generatedAt
+    + " · every metric traces to a named pull or renders as not-pulled · "
+    + D.pages.length + " page rows loaded";
+})();
+</script>
+</body>
+</html>
