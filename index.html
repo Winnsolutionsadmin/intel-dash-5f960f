@@ -286,6 +286,24 @@ footer{margin-top:64px; padding-top:20px; border-top:1px solid var(--hud-border-
 
   <section>
     <div class="shead">
+      <div><div class="eyebrow">Findings</div><h2>Ranked by risk level, then by blast radius</h2></div>
+      <div class="sub">
+        Two separate scores, because merging them destroys the only thing the reader needs to know.
+        <strong>Risk level</strong> is how important it is to fix. <strong>Blast radius</strong> is the
+        damage of making the change. High risk with low blast goes first. The last row scores risk 0
+        and blast 9: it exists to stop someone fixing it.
+      </div>
+    </div>
+    <div class="tbl-scroll">
+      <table id="findings-tbl" style="min-width:860px">
+        <thead><tr><th>Risk</th><th>Blast</th><th>Finding</th><th>Evidence</th><th>Lane</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead">
       <div><div class="eyebrow">Scope</div><h2>What this audit covered, and what it did not</h2></div>
       <div class="sub">
         Published so the dashboard cannot be mistaken for complete. Gaps are listed by name rather
@@ -385,9 +403,10 @@ window.SEO_DATA = {
     { area: "Claims / compliance",        status: "done",    how: "47 flags across 25 pages; routed to the internal red-flag audit, not resolved here" },
     { area: "Core Web Vitals",            status: "running", how: "NEVER measured on this property. PageSpeed quota died 2026-09-02 and it was left unverified" },
     { area: "Crawlability / indexability",status: "running", how: "seo-technical lane: canonicals, robots, redirect chains, JS-dependency" },
-    { area: "Local SEO (GBP / NAP)",      status: "running", how: "seo-local lane. Likely the largest organic lever for a multi-location clinic and previously untouched" },
-    { area: "Schema validation",          status: "running", how: "seo-geo lane. Missing types were noted earlier but never VALIDATED" },
-    { area: "AI search / GEO citability", status: "running", how: "seo-geo lane. AI Assistant channel already engages above Direct yet converts 0%" },
+    { area: "Local SEO (NAP / schema)",   status: "done",    how: "23 findings; 8 addresses and 6 phones inventoried with a 2019-2026 Wayback timeline" },
+    { area: "GBP internals / reviews",    status: "gap",     how: "UNDETERMINABLE without profile access. Yelp 403, Vitals 403, Healthgrades 500, RateMDs challenge; zero review records read" },
+    { area: "Schema validation",          status: "done",    how: "14 page records. All JSON-LD parses valid; Yoast emits WebPage/WebSite/Organization/BreadcrumbList only" },
+    { area: "AI search / GEO citability", status: "done",    how: "17 findings; 16 crawler UAs live-tested; llms.txt/ai.txt/RSL all 404" },
     { area: "hreflang / Spanish",         status: "running", how: "Funnel has Spanish-named actions (WC LLAMADA, WC FORMULARIO); never checked" },
     { area: "Backlink profile",           status: "gap",     how: "Not run. No authority or referring-domain data exists for this estate" },
     { area: "Keyword / topic clustering", status: "gap",     how: "Not run. No keyword map, so no intent-to-page assignment" },
@@ -396,6 +415,97 @@ window.SEO_DATA = {
     { area: "Internal link graph",        status: "gap",     how: "Not run. Orphan pages are known to exist but the graph was never built" },
     { area: "Drift baseline",             status: "gap",     how: "Not captured, so future regressions cannot be detected against today" },
     { area: "Competitor comparison",      status: "gap",     how: "Not run" }
+  ],
+
+
+  /* ---------------------------------------------------------------------------
+     RANKED FINDINGS. Two orthogonal scores, per Jarred 2026-09-17:
+       riskLevel   = how important it is to FIX this
+       blastRadius = the damage / scope of MAKING the change
+     Sorted riskLevel desc, then blastRadius asc: highest value and safest first.
+     A low-risk/high-blast row exists to STOP someone "improving" it later.
+     ------------------------------------------------------------------------ */
+  findings: [
+    { id:"NAP-TEL", risk:10, blast:1, verified:true, lane:"local",
+      title:"The displayed reception number has not been clickable for ~19 months",
+      evidence:"<a href=\"tel:+13107597911\">+1-424-460-8828</a> on 96 of 96 pages. Wayback shows the 424 line was ADDED in Feb 2025 as \"Direct number to reception\" with its href cloned from the sibling and never repointed, so it was never dialable by click.",
+      fix:"Repoint the href to whichever number is actually staffed." },
+    { id:"CTA-DEV", risk:10, blast:4, verified:true, lane:"copy",
+      title:"The sitewide primary CTA targets a Vite dev-server shell in production",
+      evidence:"Every MAKE AN APPOINTMENT button points at erp.williamscancerinstitute.com/contact-form, which serves a 14.9 KB shell: zero <form>, zero <input>, no h1, live /@vite/client and unbundled /src/main.jsx. Crawlers and language models receive no form. Whether a human gets one still needs a rendered-browser check.",
+      fix:"Build and deploy the ERP form properly, or repoint the CTA at a working destination." },
+    { id:"CRED-ABR", risk:10, blast:5, verified:true, lane:"compliance",
+      title:"Board-certification claim is unsubstantiated; ABR issues no such certificates",
+      evidence:"What holds without caveat: the ABR issues no certificate called Interventional Oncology or Interventional Spine, so those are not credentials that exist to hold. NPI lists three taxonomies (Diagnostic Radiology x2, Vascular and Interventional Radiology), but NPI is PROVIDER-SELF-SELECTED and is not a certification registry, and two same-name diagnostic radiologists exist in it, so NPI corroborates without adjudicating. ABR own verification tool is the source that settles it and has not been run.",
+      fix:"Owned by the red-flag audit. Acts as a HARD GATE on populating any specialty field in GBP, directories or schema." },
+    { id:"TRK-PV", risk:9, blast:3, verified:true, lane:"tracking",
+      title:"62% of recorded conversions are page loads",
+      evidence:"WC LLAMADA is Primary and account-default, filed under the Page view goal, booking 408 of 658 conversions. Total conversion value across all 658 is $0.50.",
+      fix:"Reclassify. Nothing currently in the account measures a lead." },
+    { id:"TRK-3GA4", risk:9, blast:2, verified:true, lane:"tracking",
+      title:"Three GA4 streams fire on every surface, inflating events ~3x",
+      evidence:"first_visit 111,152 / 37,308 users = 2.98x where correct is ~1.0. Users dedupe on the shared _ga cookie; events do not, so any rate computed as events/users is wrong by ~3x.",
+      fix:"Remove the two redundant config tags. Low blast, but it silently corrupts every metric anyone reads." },
+    { id:"PII-LEAD", risk:10, blast:6, verified:true, lane:"compliance",
+      title:"Lead form transmits unhashed personal fields to an ad platform",
+      evidence:"Leadpages' own _hpFireLead calls fbq track Lead with em/ph/fn/ln scraped from the submitted form. It sits OUTSIDE both GTM containers, so container-level remediation cannot reach it. Field names observed; no values read.",
+      fix:"Owned by the red-flag audit. Blast is high because the form is a live lead path." },
+    { id:"SEO-H1", risk:8, blast:2, verified:true, lane:"technical",
+      title:"546 of 616 pages have no H1; 470 have no meta description",
+      evidence:"Full-sitemap crawl, all 616 returning HTTP 200. /can-a-biopsy-trigger-cancer-spread/ is the #2 organic landing page at 681 sessions and has neither.",
+      fix:"Template-level fix for most; the hand-coded pages need individual attention." },
+    { id:"NAP-MAIL", risk:8, blast:1, verified:true, lane:"local",
+      title:"Displayed email and mailto target disagree on 97 occurrences",
+      evidence:"<a href=\"mailto:dr@...\">info@...</a> across 96 pages. Readers email info@, clickers email dr@. If either mailbox is unmonitored an inbound patient stream is lost silently.",
+      fix:"Align both to the monitored mailbox." },
+    { id:"GEO-GBP", risk:9, blast:2, verified:true, lane:"local",
+      title:"Zero Google Business Profile signal anywhere on the site",
+      evidence:"Sweep of raw HTML across 96/96 pages for google.com/maps, maps.google, maps.app.goo.gl, goo.gl/maps and maps.googleapis returned zero matches on every page. No embed, no place ID, no directions link. Organization.sameAs holds five social URLs and no Maps place.",
+      fix:"Nothing currently tells Google the site and any Business Profile are one entity." },
+    { id:"SCHEMA-0", risk:9, blast:2, verified:true, lane:"local",
+      title:"No local or medical schema across 616 pages",
+      evidence:"Organization carries no address, phone, geo or hours, and has held that state since at least 2019. No MedicalClinic, Physician, MedicalProcedure, MedicalWebPage, MedicalStudy or FAQPage anywhere.",
+      fix:"Add schema for VERIFIABLE facts only, each citing its source." },
+    { id:"NAP-PHONE", risk:9, blast:3, verified:false, lane:"local",
+      title:"Which phone number is correct is UNVERIFIED",
+      evidence:"Three numbers across three area codes. The one patients see FIRST (global header, all 616 pages) is +1-863-451-9755, a central-Florida number, and it is the only one whose text and href agree. 310 is the continuously-wired incumbent matching the Beverly Hills address.",
+      fix:"Test-call all three inside the stated Mon-Fri window and record who answers. Do not guess this in a work order." },
+    { id:"LOC-CABO", risk:8, blast:2, verified:true, lane:"local",
+      title:"The Cabo location contradicts itself and has no street address",
+      evidence:"Footer says Cabo San Lucas; all 13 condition pages say San Jose del Cabo, about 20 miles apart. No street address appears anywhere. Mexico City has no postal code and its colonia name is severed mid-phrase by a line break.",
+      fix:"Establish the real addresses. Also unresolved: whether any location is owned, leased or a partner facility." },
+    { id:"DATA-WC", risk:6, blast:1, verified:true, lane:"meta",
+      title:"Our own crawl metric is a false clean",
+      evidence:"site-pages.json word_count_est counts Astra and Elementor boilerplate, reporting a 361-word MINIMUM on an estate where a known page carries 5 real words.",
+      fix:"A real main-content extractor is running. Any thin-content conclusion drawn from that column is void." },
+    { id:"GEO-WIKI", risk:10, blast:1, verified:true, lane:"geo",
+      title:"A Wikidata entity already exists and the site never links to it",
+      evidence:"Q111693682 \"Jason Russell Williams\", described as American radiologist and oncologist, already carries P856 official website pointing at /about-us/. The site has never linked back. Competing surface: 8 Wikidata \"Jason Williams\" entities, 55 ORCID records, 2 NPI diagnostic radiologists.",
+      fix:"One sameAs link. Highest risk-to-blast ratio on the estate: nothing breaks." },
+    { id:"GEO-NCT", risk:10, blast:2, verified:true, lane:"geo",
+      title:"Three ClinicalTrials.gov records naming the clinic are cited zero times",
+      evidence:"NCT06533644 (Phase 2, recruiting, 23 sites incl. Mayo, Moffitt, U Chicago, UC Davis, U Miami); NCT05544227 (Phase 1 COMPLETED, n=15, PI affiliation Williams Cancer Institute); NCT05544240. A sweep for 23 sites, 87%, patent, co-invent, NCT, PubMed, ORCID and DOI returns ZERO hits estate-wide. The six Selected Key References are unlinked plain text and none is his own work.",
+      fix:"The VERIFIABLE credentials are the uncited ones while unverifiable claims sit in headings. Note n=15 must travel with any outcome percentage from that trial." },
+    { id:"GEO-QUOTE", risk:9, blast:4, verified:true, lane:"geo",
+      title:"Not blocked by AI crawlers, just unquotable",
+      evidence:"robots.txt has no directive for GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot or Bingbot; 16 AI crawler user-agents were live-tested and all returned 200. But 546 of 616 pages have no h1, blog titles render as h2 then repeat as h3, and no Physician node exists anywhere. The only Person node on the estate is a blog-author stub reading name:\"Julio\", attached as author of cancer-treatment content.",
+      fix:"Heading hierarchy and a Physician node, before any llms.txt work." },
+    { id:"GEO-WAF", risk:7, blast:2, verified:true, lane:"geo",
+      title:"The WAF silently blocks AI crawlers it does not recognise",
+      evidence:"MistralAI-User gets 403; meta-externalagent and Bytespider have connections killed with PROTOCOL_ERROR. None of it appears in robots.txt. An arbitrary unknown user-agent was also 403'd, so the edge reputation-filters unfamiliar agents, meaning any NEW AI crawler is blocked before anyone knows it exists.",
+      fix:"Decide the posture deliberately instead of inheriting it from a WAF default." },
+    { id:"GEO-AICONV", risk:9, blast:5, verified:true, lane:"geo",
+      title:"AI traffic converts at 0% while Paid Search converts at 10.89%",
+      evidence:"AI Assistant: 87 sessions, 39.08% engagement, 50s engaged time, 0 key events over 28d. Engagement BEATS Direct (27.85%) and Organic Social (38.64%), so interest is real. The control group in the same property converts at 10.89% because it lands on pages with a working ask.",
+      fix:"Funnel artefact, not disinterest. Order: real server-rendered /contact-form, then one in-content blog CTA, then the tel:/mailto: mismatches. Do not re-measure the AI channel before those land." },
+    { id:"GEO-PUBMED", risk:5, blast:1, verified:false, lane:"geo",
+      title:"Publication record is UNKNOWN, not absent",
+      evidence:"PubMed E-utilities returned HTTP 502 on every query INCLUDING the positive control term \"cancer\". Reading that as an empty result set would be a false clean.",
+      fix:"Re-query when the API recovers. Never state he has no indexed publications on this evidence." },
+    { id:"SEO-SLUGS", risk:0, blast:9, verified:true, lane:"decision",
+      title:"DO NOT rename the -2 / -3 / -4 slugs. This row exists to prevent a fix",
+      evidence:"Renaming costs accumulated search equity, and the slug irregularity was separately judged a compliance asset. A prior decision, deliberately recorded.",
+      fix:"No action. Left visible so no future agent proposes tidying them." }
   ],
 
   /* Data-source health. Drives the header badge row. */
@@ -815,6 +925,33 @@ window.SEO_DATA = {
         + '</div>';
     }).join("") + "</div>";
   }
+
+  /* ---- ranked findings: risk desc, then blast asc ---- */
+  (function(){
+    var host = document.querySelector('#findings-tbl tbody');
+    if (!host || !D.findings) return;
+    var rows = D.findings.slice().sort(function(a,b){
+      return (b.risk - a.risk) || (a.blast - b.blast);
+    });
+    function score(v, invert){
+      // high risk = urgent (red). high blast = dangerous to touch (amber).
+      var cls = invert ? (v >= 7 ? "warn" : v >= 4 ? "none" : "ok")
+                       : (v >= 9 ? "bad" : v >= 6 ? "warn" : "none");
+      return '<span class="chip '+cls+'">'+v+'</span>';
+    }
+    host.innerHTML = rows.map(function(f){
+      return "<tr>"
+        + "<td>"+score(f.risk,false)+"</td>"
+        + "<td>"+score(f.blast,true)+"</td>"
+        + '<td><strong>'+esc(f.title)+'</strong>'
+        + (f.verified===false ? ' <span class="chip none">unverified</span>' : '')
+        + (f.fix ? '<div style="color:var(--hud-text-muted); margin-top:5px; font-size:11.5px">'+esc(f.fix)+'</div>' : '')
+        + "</td>"
+        + '<td style="color:var(--hud-text-dim); max-width:430px">'+esc(f.evidence)+"</td>"
+        + '<td><span class="chip none">'+esc(f.lane)+"</span></td>"
+        + "</tr>";
+    }).join("");
+  })();
 
   /* ---- coverage ledger ---- */
   (function(){
