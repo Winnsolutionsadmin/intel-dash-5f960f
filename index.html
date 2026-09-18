@@ -612,6 +612,22 @@ window.SEO_DATA = {
       title:"Two sessions edited this dashboard concurrently and one committed over the other",
       evidence:"Two Claude sessions were editing seo-dashboard/data.js in the same shared worktree at the same time. Both pulled the GA4 API independently and both wrote a bounce correction, with different metrics: one computed a session-weighted MAPE of 37.4% on 70 comparable pages, the other a mean absolute error of 26.9 points on 462 pages. One session then committed a build containing the other's uncommitted edits, so a card described a data state that no longer existed.",
       fix:"Reconciled by hand: the card now matches the data, and both error metrics are retained because they measure different things rather than disagreeing. The process lesson is the durable one: a shared worktree needs one writer per file, and a build that silently includes another session's work in progress is a correctness hazard rather than a merge convenience." },
+    { id:"MEAS-INSTRUMENTS", risk:7, blast:1, verified:true, lane:"meta",
+      title:"Four GA4 instruments give four different session totals for the same 90 days",
+      evidence:"Same property, same window (2026-06-20 to 2026-09-17). date dimension 56,076. landingPage 55,840, which is 0.42% short. sessionDefaultChannelGroup 55,590, which is 0.87% short. UI export 56,571, which is 0.88% OVER and therefore not attribution loss at all. Spread between highest and lowest: 981 sessions, 1.75%. The date dimension is the right baseline because date has no unattributable bucket, so it is the only view that cannot silently drop what it fails to attribute. That is a property of the dimension rather than a preference.",
+      fix:"date for any sitewide total, landingPage for per-page work accepting 0.42%, channel dimension for channel work accepting 0.87%. NEVER build a ratio across two instruments: 1.75% arrives as unbudgeted error before any real effect. The UI export moving the opposite way stays UNEXPLAINED rather than guessed at, and it matters most because it is the figure a human reading the interface will quote." },
+    { id:"MEAS-GOG", risk:6, blast:1, verified:true, lane:"meta",
+      title:"The analytics CLI silently injects a date dimension into any totals query",
+      evidence:"gog analytics report with --metrics and NO --dimensions returns dimensions:[\"date\"], row_count 90, and ninety daily rows. No error, no warning; the injected dimension is visible only in the response envelope. Reading the first row as the period total produced 3,639 sessions for a 90-day window whose true total is 56,076. It was caught only because 3,639 was absurd.",
+      fix:"Carded against the tool (ClickUp z956jey4jv) alongside a sibling defect of the same shape, where the CLI succeeds while answering a different question than the one asked. A silent default that produced a PLAUSIBLE number would have shipped, which is the version that matters. Requested: either return the undimensioned total, or warn on stderr naming the injected dimension. Silent injection is the only unacceptable option." },
+    { id:"MEAS-WINDOW", risk:7, blast:1, verified:true, lane:"meta",
+      title:"A metric correction made on the wrong window unwound a finding that was right",
+      evidence:"Measured 28-day data was used to correct rows built on 90-day claims, and both corrections were wrong. A bio-page collapse claim was softened on a 28-day read of 634 sessions at 63.2%, when the 90-day measured figure is 6,151 sessions at 85.8% bounce with 4 key events, exactly as originally claimed. Separately a homepage figure was corrected to 53.1% against a claimed 72-76%, when the 90-day measured blend is 70.5% across 26,579 sessions, so the original claim was close to right and the correction was the distortion. Cause: the 28-day window reads low because paid traffic stopped on 20 July, a channel-mix change already recorded in this same audit.",
+      fix:"Every figure carries its window AND its instrument inline. Correcting a 90-day claim requires 90-day data; a different window is a NEW FINDING, not a correction. Before writing that something was overstated, check whether the delta is a window artifact. Handing a lane a file named -28d is insufficient: the handover must state which claims the file can and cannot adjudicate." },
+    { id:"MEAS-90D", risk:8, blast:1, verified:true, lane:"sxo",
+      title:"On 90 days measured, the bio page is a collapse and the paid page carries the conversions",
+      evidence:"90-day measured landing-page pull, 573 pages, sitewide bounce 69.71% against 69.77% modelled (agreement to 0.06 points on a second independent window, while the per-page distribution was 37% off). /dr-jason-williams: 6,151 sessions, 85.8% bounce, 875 engaged, 4 key events, about 95s per ENGAGED session. So the blended 13.3s figure was never a reading-time problem: 85.8% of arrivals never start. /wci: 15,383 sessions, 65.8%, 847 key events, a 5.51% rate. / (homepage): 11,196 sessions, 76.9%, 122 key events, a 1.09% rate. /contact-form: 4,332 sessions, 1,002 key events, while returning 404. /the-immunotherapy-revolution-book: 1,036 sessions, 92.1%, ZERO key events.",
+      fix:"The paid landing page converts 5.05x the actual homepage rate, which is a sharper consolidation argument than any bounce figure. Treat 5.05x as a CEILING until enquiry key events are separated from newsletter signups, because the 404 page books 1,002 of them. The bio page fix points at what is above the fold and who is arriving, not at the prose." },
     { id:"SEO-SLUGS", risk:0, blast:9, verified:true, lane:"decision",
       title:"DO NOT rename the -2 / -3 / -4 slugs. This row exists to prevent a fix",
       evidence:"Renaming costs accumulated search equity, and the slug irregularity was separately judged a compliance asset. A prior decision, deliberately recorded.",
@@ -864,12 +880,13 @@ window.SEO_DATA = {
 
   /* Sitewide roll-up. null = not pulled. Never guess these. */
   totals90: {
-    // MEASURED, 90-day window. Counts carry a ~3x inflation caveat (see discovery);
+    // MEASURED via the GA4 Data API, 90-day window. Sitewide 0.5975 measured vs 0.6977
+    // modelled: the aggregate agreed to 0.06 points while per-page was 37% off. Counts carry a ~3x inflation caveat (see discovery);
     // RATES are robust because users dedupe on the shared _ga cookie and events do not.
     sessions: 56571,
     users: null,                    // 38,286 reported but stream-inflated; withheld rather than printed
     engagementRate: 0.3023,
-    bounceRate: 0.6977,
+    bounceRate: 0.6971,   // MEASURED (date-baseline sessions 56,076; landingPage total 55,840)
     avgSessionDuration: 72.5,
     conversions: null,              // 2,099 GA4 "key events" are form submits; Ads' 658 are 62% page loads. Neither measures a lead.
     pagesInSitemap: null,           // awaiting crawl lane
@@ -1204,7 +1221,7 @@ window.SEO_DATA = {
     {
       kind: "open",
       title: "Claims and compliance findings are held in the internal record",
-      body: "A separate copy audit produced claims, credential and disclosure findings across the estate. Those are client-confidential and tracked in the internal red-flag audit. They are deliberately omitted from this public view; ask for the internal artifact."
+      body: "A separate copy audit produced claims, credential and disclosure findings across the estate. Those are client-confidential and tracked in the internal red-flag audit with risk-level and blast-radius scoring. They are deliberately omitted from this public view; ask for the internal artifact."
     },
     {
       kind: "open",
