@@ -247,6 +247,12 @@ footer{margin-top:64px; padding-top:20px; border-top:1px solid var(--hud-border-
   <section>
     <div class="shead"><div><div class="eyebrow">Roll-up</div><h2>Sitewide</h2></div></div>
     <div class="kpis" id="kpis"></div>
+
+    <div class="shead" style="margin-top:8px">
+      <div><div class="eyebrow">Second window</div><h2>The same site read through the API, after it was unblocked</h2></div>
+      <div class="sub" id="api-basis"></div>
+    </div>
+    <div class="kpis" id="kpis-api"></div>
   </section>
 
   <section>
@@ -598,6 +604,14 @@ window.SEO_DATA = {
       title:"Two of the three GA4 properties are EMPTY, including one named Consumer website",
       evidence:"Admin API, now reachable, lists three properties under account 202026819: 279063369 Williams Cancer Institute, 386650747 Williams Cancer Institute CRM - GA4, and 444648575 Williams Cancer Institute Consumer website - GA4. Querying all three over the same 28-day window: 279063369 returns data, and 386650747 and 444648575 return NO ROWS. Someone provisioned a CRM property and a consumer-website property and nothing has ever flowed into either.",
       fix:"Decide whether these are abandoned scaffolding or a stalled re-architecture, then delete or complete them. Two consequences worth separating: first, every figure in this dashboard comes from 279063369, which is the only property with data, so the numbers are sound. Second, this CORRECTS an earlier claim in this record that GA4 arrives by BigQuery export on property 386650747; that property is empty over the API, and a BigQuery export moves data OUT of GA4 rather than in, so the earlier claim was garbled and should not be relied on. Note also that the 3x event inflation finding concerns three data STREAMS inside one property, which is a different thing from these three properties." },
+    { id:"META-ACCOUNT", risk:6, blast:0, verified:true, lane:"meta",
+      title:"Hours were spent on the wrong Google account because an inference was reported as a finding",
+      evidence:"A subagent reported winnj1@me.com as the likely owner of Cloud project 565038237200 and never verified it. That inference was then carried forward as established fact across several attempts, including a native Touch ID passkey wall that no automation can pass. Jarred resolved it in one screenshot: winnj1@me.com is MISSING resourcemanager.projects.get, so it cannot even see the project. He enabled both APIs on jarred@winn.solutions on the first try, and that account was present in gog auth list the entire time and is almost certainly where the gog OAuth client is registered.",
+      fix:"The defect is not the wrong guess, it is presenting an unverified inference with the same confidence as a measurement. Ownership of a cloud project is checkable in one call; it should have been checked before a single browser attempt. Recorded here rather than only in a commit message, because the dashboard is where the audit's own failures belong." },
+    { id:"META-COLLISION", risk:5, blast:1, verified:true, lane:"meta",
+      title:"Two sessions edited this dashboard concurrently and one committed over the other",
+      evidence:"Two Claude sessions were editing seo-dashboard/data.js in the same shared worktree at the same time. Both pulled the GA4 API independently and both wrote a bounce correction, with different metrics: one computed a session-weighted MAPE of 37.4% on 70 comparable pages, the other a mean absolute error of 26.9 points on 462 pages. One session then committed a build containing the other's uncommitted edits, so a card described a data state that no longer existed.",
+      fix:"Reconciled by hand: the card now matches the data, and both error metrics are retained because they measure different things rather than disagreeing. The process lesson is the durable one: a shared worktree needs one writer per file, and a build that silently includes another session's work in progress is a correctness hazard rather than a merge convenience." },
     { id:"SEO-SLUGS", risk:0, blast:9, verified:true, lane:"decision",
       title:"DO NOT rename the -2 / -3 / -4 slugs. This row exists to prevent a fix",
       evidence:"Renaming costs accumulated search equity, and the slug irregularity was separately judged a compliance asset. A prior decision, deliberately recorded.",
@@ -827,6 +841,13 @@ window.SEO_DATA = {
   "avgSec": 214.7
  }
 ],
+
+  totalsAPI: {
+    window: "rolling 28d to 2026-09-17, GA4 Data API (landingPage basis)",
+    basis: "Sessions attributed to the page they STARTED on. Not comparable row-for-row with the browser-read 2026-08-20 to 09-16 window above; both are real, they are different windows and different bases.",
+    sessions: 12526, engagedSessions: 5264, bounceRate: 0.5800, engagementRate: 0.4200,
+    keyEvents: 126, landingPages: 468, pagesMeasured: 461, pagesUnmeasurable: 241
+  },
 
   /* Data-source health. Drives the header badge row. */
   sources: [
@@ -1429,6 +1450,25 @@ window.SEO_DATA = {
         + '<p>'+esc(x.detail)+'</p>'
         + '<p style="margin-top:8px"><span class="num" style="font-size:11px; color:var(--hud-text-dark)">'+esc(x.where)+'</span></p>'
         + '</div>';
+    }).join("");
+  })();
+
+  /* ---- second KPI strip: API window, kept separate from the browser-read window ---- */
+  (function(){
+    var a = D.totalsAPI, host = $("kpis-api");
+    if (!a || !host) return;
+    var b = $("api-basis"); if (b) b.textContent = a.basis || "";
+    var defs = [
+      ["Sessions", (a.sessions||0).toLocaleString(), a.window],
+      ["Bounce rate", pct(a.bounceRate), "measured, landingPage basis"],
+      ["Engaged sessions", (a.engagedSessions||0).toLocaleString(), "engagement is observed, bounce is derived"],
+      ["Key events", String(a.keyEvents||0), "still the count that overstates enquiries"],
+      ["Landing pages", String(a.landingPages||0), "with at least one session"],
+      ["Pages measured", String(a.pagesMeasured||0), "of 702 in the inventory"],
+      ["Pages unmeasurable", String(a.pagesUnmeasurable||0), "no landing sessions, so bounce is undefined"]
+    ];
+    host.innerHTML = defs.map(function(k){
+      return '<div class="kpi"><div class="k">'+esc(k[0])+'</div><div class="v">'+esc(k[1])+'</div><div class="s">'+esc(k[2])+'</div></div>';
     }).join("");
   })();
 
