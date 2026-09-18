@@ -286,6 +286,17 @@ footer{margin-top:64px; padding-top:20px; border-top:1px solid var(--hud-border-
 
   <section>
     <div class="shead">
+      <div><div class="eyebrow">Deliverables</div><h2>Three documents, one of them still open</h2></div>
+      <div class="sub">
+        The audit is this page. The remediation plan and the migration strategy are separate
+        documents, because a plan you act from and a dashboard you read from are different objects.
+      </div>
+    </div>
+    <div class="cards" id="deliverables"></div>
+  </section>
+
+  <section>
+    <div class="shead">
       <div><div class="eyebrow">Findings</div><h2>Ranked by risk level, then by blast radius</h2></div>
       <div class="sub">
         Two separate scores, because merging them destroys the only thing the reader needs to know.
@@ -435,8 +446,8 @@ window.SEO_DATA = {
       evidence:"Every MAKE AN APPOINTMENT button points at erp.williamscancerinstitute.com/contact-form, which serves a 14.9 KB shell: zero <form>, zero <input>, no h1, live /@vite/client and unbundled /src/main.jsx. Crawlers and language models receive no form. Whether a human gets one still needs a rendered-browser check.",
       fix:"Build and deploy the ERP form properly, or repoint the CTA at a working destination." },
     { id:"CRED-ABR", risk:10, blast:5, verified:true, lane:"compliance",
-      title:"Board-certification claim is unsubstantiated; ABR issues no such certificates",
-      evidence:"What holds without caveat: the ABR issues no certificate called Interventional Oncology or Interventional Spine, so those are not credentials that exist to hold. NPI lists three taxonomies (Diagnostic Radiology x2, Vascular and Interventional Radiology), but NPI is PROVIDER-SELF-SELECTED and is not a certification registry, and two same-name diagnostic radiologists exist in it, so NPI corroborates without adjudicating. ABR own verification tool is the source that settles it and has not been run.",
+      title:"Board-certification claim is CONTRADICTED by the ABR registry",
+      evidence:"CONTRADICTED against the ABR registry, not merely unsubstantiated: an August verification lane DID run ABR public verification and returned ONE certificate, Diagnostic Radiology, Certified and Maintained. The site claims four. Separately the ABR issues no certificate called Interventional Oncology or Interventional Spine at all. NPI corroborates with three self-selected taxonomies but is not a certification registry. One open precision item: two same-name diagnostic radiologists exist in NPI, so a human re-runs ABR with identity resolved by the Alabama address and files the screenshot before replacement text ships.",
       fix:"Owned by the red-flag audit. Acts as a HARD GATE on populating any specialty field in GBP, directories or schema." },
     { id:"TRK-PV", risk:9, blast:3, verified:true, lane:"tracking",
       title:"62% of recorded conversions are page loads",
@@ -498,10 +509,10 @@ window.SEO_DATA = {
       title:"AI traffic converts at 0% while Paid Search converts at 10.89%",
       evidence:"AI Assistant: 87 sessions, 39.08% engagement, 50s engaged time, 0 key events over 28d. Engagement BEATS Direct (27.85%) and Organic Social (38.64%), so interest is real. The control group in the same property converts at 10.89% because it lands on pages with a working ask.",
       fix:"Funnel artefact, not disinterest. Order: real server-rendered /contact-form, then one in-content blog CTA, then the tel:/mailto: mismatches. Do not re-measure the AI channel before those land." },
-    { id:"GEO-PUBMED", risk:5, blast:1, verified:false, lane:"geo",
-      title:"Publication record is UNKNOWN, not absent",
-      evidence:"PubMed E-utilities returned HTTP 502 on every query INCLUDING the positive control term \"cancer\". Reading that as an empty result set would be a false clean.",
-      fix:"Re-query when the API recovers. Never state he has no indexed publications on this evidence." },
+    { id:"GEO-PUBMED", risk:8, blast:1, verified:true, lane:"geo",
+      title:"Publication record EXISTS: PMID 42132749 plus 5 abstracts",
+      evidence:"An August verification lane established PMID 42132749 plus five abstracts. A later PubMed probe returned HTTP 502 on every query INCLUDING the positive control term cancer, so that probe proved nothing; reading it as an empty result set would have been a false clean. The record stands on the August lane.",
+      fix:"Cite it. A published paper is a verifiable credential and the estate links to none of its own work." },
     { id:"CWV-DNF", risk:10, blast:6, verified:true, lane:"technical",
       title:"On mobile the homepage never finishes loading at all",
       evidence:"First CWV measurement ever taken on this property. On the Lighthouse mobile profile the homepage does not reach DOMContentLoaded within 90 seconds: only 44 of 98 requests returned, 54 still pending including the root document. The load event does not fire within 120s on EITHER profile. /procedures/ also DNF. Desktop homepage LCP 3.77s, CLS 0.0348.",
@@ -538,6 +549,17 @@ window.SEO_DATA = {
       title:"DO NOT rename the -2 / -3 / -4 slugs. This row exists to prevent a fix",
       evidence:"Renaming costs accumulated search equity, and the slug irregularity was separately judged a compliance asset. A prior decision, deliberately recorded.",
       fix:"No action. Left visible so no future agent proposes tidying them." }
+  ],
+
+
+  /* The three deliverables Jarred asked for, and their live state. */
+  deliverables: [
+    { name:"SEO audit", state:"substantially done", where:"This dashboard",
+      detail:"28 scored findings across tracking, crawl, engagement, copy, technical, CWV, local and GEO. Coverage ledger below names what is still not run." },
+    { name:"SEO remediation plan", state:"done", where:"reference/seo-remediation-plan.md",
+      detail:"8 phases, ordered risk desc then blast asc, with a verification method per item. Phase 7 is DO NOT DO THESE: four fixes someone will plausibly propose, with the reason each is wrong." },
+    { name:"SEO migration + rollback strategy", state:"in flight", where:"reference/seo-migration-strategy.md",
+      detail:"Value inventory, migration strategy, proof design, and a rollback with evidence it restores prior SEO. Goes through counsel deliberate for adversarial validation before anyone relies on it." }
   ],
 
   /* Data-source health. Drives the header badge row. */
@@ -732,7 +754,7 @@ window.SEO_DATA = {
     {
       kind: "open",
       title: "Claims and compliance findings are held in the internal record",
-      body: "A separate copy audit produced claims, credential and disclosure findings across the estate. Those are client-confidential and are tracked in the internal red-flag audit with risk-level and blast-radius scoring. They are deliberately omitted from this public view; ask for the internal artifact."
+      body: "A separate copy audit produced claims, credential and disclosure findings across the estate. Those are client-confidential and tracked in the internal red-flag audit with risk-level and blast-radius scoring. They are deliberately omitted from this public view; ask for the internal artifact."
     },
     {
       kind: "open",
@@ -957,6 +979,22 @@ window.SEO_DATA = {
         + '</div>';
     }).join("") + "</div>";
   }
+
+  /* ---- deliverables ---- */
+  (function(){
+    var host = $("deliverables");
+    if (!host || !D.deliverables) return;
+    var cls = { "done":"verified", "substantially done":"verified", "in flight":"open" };
+    var chip = { "done":"ok", "substantially done":"ok", "in flight":"warn" };
+    host.innerHTML = D.deliverables.map(function(x){
+      return '<div class="card '+(cls[x.state]||"open")+'"><div class="t">'
+        + '<span class="chip '+(chip[x.state]||"none")+'">'+esc(x.state)+'</span>'
+        + '<h3>'+esc(x.name)+'</h3></div>'
+        + '<p>'+esc(x.detail)+'</p>'
+        + '<p style="margin-top:8px"><span class="num" style="font-size:11px; color:var(--hud-text-dark)">'+esc(x.where)+'</span></p>'
+        + '</div>';
+    }).join("");
+  })();
 
   /* ---- ranked findings: risk desc, then blast asc ---- */
   (function(){
