@@ -594,6 +594,10 @@ window.SEO_DATA = {
       title:"Spanish content and hreflang are both simply ABSENT, and the conversion loss cannot be established",
       evidence:"Zero Spanish content across all 616 crawled URLs and all 55 live-HTML pages; two apparent signals were investigated and ruled out as false positives (base64 substrings, an external citation URL, Spanish-dated image filenames on English posts). Zero hreflang annotations. html lang=\"en-US\" is 100% consistent. The business IS paying for Spanish intent (WC FORMULARIO and WC LLAMADA conversion actions exist), but Paid Search is only 101 of 11,899 sessions in the window and no GA4 export in this estate carries a country or language dimension, so whether that intent arrives and bounces or never arrives at all is UNKNOWN.",
       fix:"Do not build Spanish pages on an assumption. Add a language dimension to a GA4 pull first, or ask whoever wrote the Spanish ad copy who it was aimed at." },
+    { id:"GA4-3PROPS", risk:7, blast:2, verified:true, lane:"tracking",
+      title:"Two of the three GA4 properties are EMPTY, including one named Consumer website",
+      evidence:"Admin API, now reachable, lists three properties under account 202026819: 279063369 Williams Cancer Institute, 386650747 Williams Cancer Institute CRM - GA4, and 444648575 Williams Cancer Institute Consumer website - GA4. Querying all three over the same 28-day window: 279063369 returns data, and 386650747 and 444648575 return NO ROWS. Someone provisioned a CRM property and a consumer-website property and nothing has ever flowed into either.",
+      fix:"Decide whether these are abandoned scaffolding or a stalled re-architecture, then delete or complete them. Two consequences worth separating: first, every figure in this dashboard comes from 279063369, which is the only property with data, so the numbers are sound. Second, this CORRECTS an earlier claim in this record that GA4 arrives by BigQuery export on property 386650747; that property is empty over the API, and a BigQuery export moves data OUT of GA4 rather than in, so the earlier claim was garbled and should not be relied on. Note also that the 3x event inflation finding concerns three data STREAMS inside one property, which is a different thing from these three properties." },
     { id:"SEO-SLUGS", risk:0, blast:9, verified:true, lane:"decision",
       title:"DO NOT rename the -2 / -3 / -4 slugs. This row exists to prevent a fix",
       evidence:"Renaming costs accumulated search equity, and the slug irregularity was separately judged a compliance asset. A prior decision, deliberately recorded.",
@@ -1179,7 +1183,7 @@ window.SEO_DATA = {
     {
       kind: "open",
       title: "Claims and compliance findings are held in the internal record",
-      body: "A separate copy audit produced claims, credential and disclosure findings across the estate. Those are client-confidential and tracked in the internal red-flag audit with risk-level and blast-radius scoring. They are deliberately omitted from this public view; ask for the internal artifact."
+      body: "A separate copy audit produced claims, credential and disclosure findings across the estate. Those are client-confidential and tracked in the internal red-flag audit. They are deliberately omitted from this public view; ask for the internal artifact."
     },
     {
       kind: "open",
